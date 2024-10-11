@@ -1,0 +1,27 @@
+MV R1, #5
+MV R2, #3
+ADC R1, R2
+MV R3, #12
+MV IO, #0x4
+SLL IO, R3
+SW #0, R1
+MV R4, #10
+MV IO, #0x3F
+SLL IO, R3
+BA #0xF0
+
+CALL @multiply
+
+# multiplier - multiplies R1 and R2 and puts result in R3
+# R3 and R4 are used, but pushed to stack
+@multiply
+PUSH R3
+PUSH R4
+MV R4, R1
+MV R3, #0
+SET R4         # begin loop
+BO.NZ #4
+RET
+ADC R3, R2     # what if carry is set in first iteration?
+SUB R4, #1
+BO #-10

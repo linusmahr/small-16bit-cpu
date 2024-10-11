@@ -1,0 +1,186 @@
+16 bit processor
+
+16 bit data width
+24 bit address width
+
+          0000 0000 byte
+0000 0000 0000 0000 word
+
+-- endian --
+
+little endian
+  0x 21 FE
+  0b 1111 1110 0010 0001
+byte order remains the same. MSB at smallest memory address.
+
+-- registers --
+
+R1  0000 0 GP
+R2  0001 1 GP
+R3  0010 2 GP
+R4  0011 3 GP
+R5  0100 4 GP
+R6  0101 5 GP
+R7  0110 6 GP
+R8  0111 7 GP
+
+R9  1000 8 GP
+R10 1001 9 GP
+R11 1010 A GP
+R12 1011 B IO
+R13 1100 C LR (24bit)
+R14 1101 D SP (24bit)
+R15 1110 E PC (24bit)
+R16 1111 F FL
+
+flag & control register:
+Z zero          bit pos 0
+N negative      bit pos 1
+P positive      bit pos 2
+C carry         bit pos 3
+V overflow      bit pos 4
+
+ZNP are set by SET instruction
+CV are set by ADD, ADC instructions
+
+-- instructions --
+
+arithmetic
+ADD     ADD rA, rB/#imm6          rA <- rA + rB/imm
+ADC     ADC rA, rB/#imm6          rA <- rA + rB/imm + C
+SUB     SUB rA, rB/#imm6          rA <- rA - rB/imm
+AND     AND rA, rB                rA <- rA & rB
+OR      OR rA, rB                 rA <- rA | rB
+NOT     NOT rA                    rA <- !rA
+XOR     XOR rA, rB                rA <- rA ^ rB
+SLL     SLL rA, rB                rA <- rA << rB                shift left logical
+SRL     SRL rA, rB                rA <- rA >> rB                shift right logical; fill up with 0
+SRA     SRA rA, rB                rA <- rA >>> rB               shift right arithmetic; fill up with MSB
+
+io
+LB      LB rA, #imm8              rA <- mem[IO<<8+imm8]         load byte
+LW      LW rA, #imm8              rA <- mem[IO<<8+imm8]         load word
+SB      SB #imm8, rA              mem[IO<<8+imm8] <- rA         store byte
+SW      SW #imm8, rB              mem[IO<<8+imm8] <- rA         store word
+MV      MV rA, rB/#imm6           rA <- rB/imm                  move regs 16bit
+MVL     MVL rS, #imm8             rS <- IO<<8+imm               move 24bit value into special reg 
+
+control
+SET     SET rA                                                    set ZNP flags for rA
+PUSH    PUSH rA               mem[--SP] <- rA                     push rA to stack
+POP     POP rA                rA <- mem[SP++]                     pop from stack to rA
+CALL    CALL #imm8            lr <- pc+2; pc <- IO<<8+imm8        stores pc+2 and jumps to new address
+RET     RET                   pc <- lr                            returns to lr  
+
+jump
+BO      BO #imm8              PC = PC + #imm                          branch offset
+BO.Z    BO.Z #imm8            Z == 1 ? PC = PC + #imm : nop           branch offset if zero
+BO.NZ   BO.NZ #imm8           Z == 0 ? PC = PC + #imm : nop           branch offset if not zero
+BO.C    BO.C #imm8            C == 1 ? PC = PC + #imm : nop           branch offset if carry
+BO.V    BO.V #imm8            V == 1 ? PC = PC + #imm : nop           branch offset if overflow
+BO.N    BO.N #imm8            N == 1 ? PC = PC + #imm : nop           branch offset if negative
+BO.P    BO.P #imm8            P == 1 ? PC = PC + #imm : nop           branch offset if positive
+
+BA      BA #imm8              PC = mem[IO<<8+imm8]                    branch to address
+BA.Z    BA.Z #imm8            Z == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if zero
+BA.NZ   BA.NZ #imm8           Z == 0 ? PC = mem[IO<<8+imm8] : nop     branch offset if not zero
+BA.C    BA.C #imm8            C == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if carry
+BA.V    BA.V #imm8            V == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if overflow
+BA.N    BA.N #imm8            N == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if negative
+BA.P    BA.P #imm8            P == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if positive
+
+
+-- memory --
+
+24 bit address width
+
+000000...FFFFFF total memory
+
+000000...3FFFFF ROM
+400000...7FFFFF RAM
+800000...9FFFFF stack from top
+AFFFFF...FFFFFD reserved
+FFFFFE...FFFFFF control register
+
+-- instruction mapping --
+
+arithmetic
+ADD     ADD    rA,  rB/#imm6
+        10000I 0000 00 0000
+ADC     ADC    rA,  rB/#imm6
+        10001I 0000 000000
+SUB     SUB    rA,  rB/#imm6
+        10010I 0000 000000
+AND     AND      rA,  rB
+        10011000 0000 0000
+OR      OR       rA,  rB
+        10011001 0000 0000
+NOT     NOT      rA
+        10011010 0000 ????
+XOR     XOR      rA,  rB
+        10011011 0000 0000
+SLL     SLL      rA,  rB
+        10011100 0000 0000
+SRL     SRL      rA,  rB
+        10011101 0000 0000
+SRA     SRA      rA,  rB
+        10011110 0000 0000
+
+io
+LB      LB   rA,  #imm8
+        0000 0000 00000000
+LW      LW   rA,  #imm8
+        0001 0000 00000000
+SB      SB   #imm8,   rA
+        0010 00000000 0000
+SW      SW   #imm8,   rA
+        0011 00000000 0000
+MV      MV     rA,  rB/#imm6
+        01000I 0000 00 0000
+MVL     MVL  rS,  #imm8
+        0101 0000 00000000
+
+control
+SET     SET          rA
+        110000000000 0000
+PUSH    PUSH         rA
+        110000000010 0000
+POP     POP          rA
+        110000000011 0000
+CALL    CALL     #imm8
+        11000001 00000000
+RET     RET
+        110000000001 0???
+NOP     NOP
+        110000000001 1???
+
+jump
+BO      BO        #imm8
+        1110 0000 00000000
+BO.Z    BO.Z      #imm8
+        1110 0001 00000000
+BO.NZ   BO.NZ     #imm8
+        1110 0010 00000000
+BO.C    BO.C      #imm8
+        1110 0011 00000000
+BO.V    BO.V      #imm8
+        1110 0100 00000000
+BO.N    BO.N      #imm8
+        1110 0101 00000000
+BO.P    BO.P      #imm8
+        1110 0110 00000000
+
+BA      BA        #imm8
+        1111 0000 00000000
+BA.Z    BA.Z      #imm8
+        1111 0001 00000000
+BA.NZ   BA.NZ     #imm8
+        1111 0010 00000000
+BA.C    BA.C      #imm8
+        1111 0011 00000000
+BA.V    BA.V      #imm8
+        1111 0100 00000000
+BA.N    BA.N      #imm8
+        1111 0101 00000000
+BA.P    BA.P      #imm8
+        1111 0110 00000000
