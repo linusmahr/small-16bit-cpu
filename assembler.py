@@ -25,11 +25,14 @@ def parse_rbimm6b(operand):
     
     # Check if the value is in hex format
     if imm_value.startswith('0x'):
-      imm_value = int(imm_value, 16)  # Parse hex value
+      imm_value = int_2c(imm_value, 6)  # Parse hex value
     else:
       imm_value = int(imm_value)  # Parse decimal value
+
+    if imm_value < -(1 << 5) or imm_value >= (1 << 5):
+      raise ValueError(f"Immediate value {imm_value} exceeds the allowed 6-bit range (-32 to 31).")
     
-    return format(imm_value, '06b'), '1'  # Immediate with 6 bits
+    return format(imm_value & 0x3F, '06b'), '1'  # Immediate with 6 bits
   else:
     raise ValueError(f"Unknown operand rB/#imm6: {operand}")
   
@@ -40,16 +43,21 @@ def parse_imm8b(operand):
     
     # Check if the value is in hex format
     if imm_value.startswith('0x'):
-      imm_value = int(imm_value, 16)  # Parse hex value
+      # Convert from hex string using 2's complement
+      imm_value = int_2c(imm_value, 8)
     else:
-      imm_value = int(imm_value)  # Parse decimal value
-
-    if imm_value > 0xFF:
-      raise ValueError(f"Immediate value {hex(imm_value)} exceeds the allowed 8-bit range (0xFF).")
+      # Parse as a regular integer, assuming decimal input
+      imm_value = int(imm_value)
     
-    return format(imm_value, '08b')  # Immediate with 6 bits
+    # Ensure the value fits within the 8-bit range (-128 to 127 for signed 2's complement)
+    if imm_value < -(1 << 7) or imm_value >= (1 << 7):
+      raise ValueError(f"Immediate value {imm_value} exceeds the allowed 8-bit range (-128 to 127).")
+    
+    # Convert back to hex 2's complement and return the binary representation
+    return format(imm_value & 0xFF, '08b')  # Format as 8-bit binary string
   else:
     raise ValueError(f"Unknown operand #imm8: {operand}")
+
 
 def parse_reg(operand):
   """Parse a reg operand"""
@@ -113,11 +121,11 @@ def assembler_macro(line):
   elif line.startswith('asm.mv'):
     imm_value = parts[2][1:]
     if imm_value.startswith('0x'):
-      imm_value = int(imm_value, 16)
+      imm_value = int_2c(imm_value, 16)
     else:
       imm_value = int(imm_value)
-    if imm_value > 0xFFFF:
-      raise ValueError(f"Immediate value {hex(imm_value)} exceeds the allowed 16-bit range (0xFFFF).")
+    if imm_value < -(1 << 15) or imm_value >= (1 << 15):
+      raise ValueError(f"Immediate value {hex_2c(imm_value)} exceeds the allowed 16-bit range (0xFFFF).")
     rA = parse_reg(parts[1].rstrip(','))
     MVL = f"0100{rA}{format(imm_value & 0xFF, '08b')}"  # Lower 8 bits
     MVH = f"0101{rA}{format((imm_value >> 8) & 0xFF, '08b')}"  # Higher 8 bits
@@ -183,7 +191,8 @@ def assemble_file(input_file, output_file):
         raise ValueError(f"Label '{label}' already exists in the dictionary.")
       labels[label] = address
 
-    elif line and not line.startswith('#') and not line.startswith('asm'):  # Translate the lines, ignore empty lines, comments and asm instructions
+    # Translate the lines, ignore empty lines, comments and asm instructions
+    elif line and not line.startswith('#') and not line.startswith('asm'):
       binary_code = assemble_instruction(line)
       if binary_code:
         binary_output.append(binary_code)
@@ -200,5 +209,38 @@ def assemble_file(input_file, output_file):
     bin_file.write('\n'.join(binary_output))
     #print(f"Binary code written to {output_file}")
 
+def hex_2c(n, bits=8):
+    # Calculate the minimum and maximum allowable values for the given number of bits
+    min_val = -(1 << (bits - 1))
+    max_val = (1 << (bits - 1)) - 1
+    
+    # Check if the value is within the range of the 2's complement for the given bits
+    if n < min_val or n > max_val:
+        raise ValueError(f"Value {n} is out of range for {bits}-bit 2's complement")
+    
+    # Perform the 2's complement conversion
+    hex_value = hex((n + (1 << bits)) % (1 << bits))
+    return '0x' + hex_value[2:].upper()
+
+
+def int_2c(hex_str, bits=8):
+    # Convert hex string to an integer
+    n = int(hex_str, 16)
+    
+    # Calculate the maximum allowable value for the given number of bits
+    max_val = (1 << bits) - 1
+    
+    # Check if the value exceeds the maximum for the given number of bits
+    if n > max_val:
+        raise ValueError(f"Value {hex_str} is out of range for {bits}-bit 2's complement")
+    
+    # Check if the number is negative by examining the most significant bit
+    if n & (1 << (bits - 1)):
+        # If the number is negative, convert it from 2's complement
+        n = n - (1 << bits)
+    
+    return n
+
 # Example usage
-assemble_file('assembly.txt', 'binary.txt')
+if __name__ == "__main__":
+  assemble_file('assembly.txt', 'binary.txt')

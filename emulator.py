@@ -18,7 +18,7 @@ cpu.print_registers()
 cpu.print_flags()
 
 # Check register values with expected
-cpu.evaluate_registers(output=True, halt=False, r1=9, r2=3, r3=0x1234)
+cpu.evaluate_registers(output=True, halt=False, r1=8, r2=3, r3=0x1234)
 
 # Check the result
 result = cpu.read_word(0x4000)
