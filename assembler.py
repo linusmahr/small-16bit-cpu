@@ -43,6 +43,9 @@ def parse_imm8b(operand):
       imm_value = int(imm_value, 16)  # Parse hex value
     else:
       imm_value = int(imm_value)  # Parse decimal value
+
+    if imm_value > 0xFF:
+      raise ValueError(f"Immediate value {hex(imm_value)} exceeds the allowed 8-bit range (0xFF).")
     
     return format(imm_value, '08b')  # Immediate with 6 bits
   else:
@@ -101,12 +104,24 @@ def assemble_instruction(line):
   
 def assembler_macro(line):
   """Handles assembler macros"""
+  parts = line.split()
   if line.startswith('asm.call'):
-    parts = line.split()
     MVL = f"01001011{parts[1]}_l"
     MVH = f"01011011{parts[1]}_h"
     CALL = f"1100000100000000"
     binary_code = [MVL, MVH, CALL]
+  elif line.startswith('asm.mv'):
+    imm_value = parts[2][1:]
+    if imm_value.startswith('0x'):
+      imm_value = int(imm_value, 16)
+    else:
+      imm_value = int(imm_value)
+    if imm_value > 0xFFFF:
+      raise ValueError(f"Immediate value {hex(imm_value)} exceeds the allowed 16-bit range (0xFFFF).")
+    rA = parse_reg(parts[1].rstrip(','))
+    MVL = f"0100{rA}{format(imm_value & 0xFF, '08b')}"  # Lower 8 bits
+    MVH = f"0101{rA}{format((imm_value >> 8) & 0xFF, '08b')}"  # Higher 8 bits
+    binary_code = [MVL, MVH]
   return binary_code
 
 def replace_labels(binary_output, labels):

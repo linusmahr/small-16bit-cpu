@@ -1,6 +1,7 @@
 MVL R1, #5
 MVL R2, #3
 ADC R1, R2
+asm.mv R3 #0x1234
 MVL IO, #0x00
 MVH IO, #0x40
 SW R1, #0
@@ -9,6 +10,7 @@ MVH IO, #0xFF
 BA #0xF0
 
 asm.call @test
+
 
 @test
 
@@ -21,7 +23,7 @@ asm.call @multiply
 @multiply
 PUSH R4
 MV R4, R2
-MV R1, #0
+MVL R1, #0
 SET R1         # begin loop
 BO.NZ #6
 POP R4
