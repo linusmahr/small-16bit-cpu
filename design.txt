@@ -1,7 +1,7 @@
 16 bit processor
 
 16 bit data width
-24 bit address width
+16 bit address width
 
           0000 0000 byte
 0000 0000 0000 0000 word
@@ -28,9 +28,9 @@ R9  1000 8 GP
 R10 1001 9 GP
 R11 1010 A GP
 R12 1011 B IO
-R13 1100 C LR (24bit)
-R14 1101 D SP (24bit)
-R15 1110 E PC (24bit)
+R13 1100 C LR
+R14 1101 D SP
+R15 1110 E PC
 R16 1111 F FL
 
 flag & control register:
@@ -58,18 +58,20 @@ SRL     SRL rA, rB                rA <- rA >> rB                shift right logi
 SRA     SRA rA, rB                rA <- rA >>> rB               shift right arithmetic; fill up with MSB
 
 io
-LB      LB rA, #imm8              rA <- mem[IO<<8+imm8]         load byte
-LW      LW rA, #imm8              rA <- mem[IO<<8+imm8]         load word
-SB      SB #imm8, rA              mem[IO<<8+imm8] <- rA         store byte
-SW      SW #imm8, rB              mem[IO<<8+imm8] <- rA         store word
-MV      MV rA, rB/#imm6           rA <- rB/imm                  move regs 16bit
-MVL     MVL rS, #imm8             rS <- IO<<8+imm               move 24bit value into special reg 
+LB      LB rA, #imm8              rA <- mem[IO+imm8]            load byte
+LW      LW rA, #imm8              rA <- mem[IO+imm8]            load word
+SB      SB rA, #imm8              mem[IO+imm8] <- rA            store byte
+SW      SW rA, #imm8              mem[IO+imm8] <- rA            store word
+MV      MV rA, rB                 rA <- rB                      move regs
+MVL     MVL rA, #imm8             rA[0..7] <- imm8              move 8 bits into lower part of rA
+MVH     MVH rA, #imm8             rA[8..15] <- imm8             move 8 bits into higher part of rA
 
 control
+NOP     NOP
 SET     SET rA                                                    set ZNP flags for rA
 PUSH    PUSH rA               mem[--SP] <- rA                     push rA to stack
 POP     POP rA                rA <- mem[SP++]                     pop from stack to rA
-CALL    CALL #imm8            lr <- pc+2; pc <- IO<<8+imm8        stores pc+2 and jumps to new address
+CALL    CALL #imm8            lr <- pc+2; pc <- IO+imm8           stores pc+2 and jumps to new address
 RET     RET                   pc <- lr                            returns to lr  
 
 jump
@@ -82,25 +84,23 @@ BO.N    BO.N #imm8            N == 1 ? PC = PC + #imm : nop           branch off
 BO.P    BO.P #imm8            P == 1 ? PC = PC + #imm : nop           branch offset if positive
 
 BA      BA #imm8              PC = mem[IO<<8+imm8]                    branch to address
-BA.Z    BA.Z #imm8            Z == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if zero
-BA.NZ   BA.NZ #imm8           Z == 0 ? PC = mem[IO<<8+imm8] : nop     branch offset if not zero
-BA.C    BA.C #imm8            C == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if carry
-BA.V    BA.V #imm8            V == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if overflow
-BA.N    BA.N #imm8            N == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if negative
-BA.P    BA.P #imm8            P == 1 ? PC = mem[IO<<8+imm8] : nop     branch offset if positive
-
+BA.Z    BA.Z #imm8            Z == 1 ? PC = mem[IO+imm8] : nop        branch offset if zero
+BA.NZ   BA.NZ #imm8           Z == 0 ? PC = mem[IO+imm8] : nop        branch offset if not zero
+BA.C    BA.C #imm8            C == 1 ? PC = mem[IO+imm8] : nop        branch offset if carry
+BA.V    BA.V #imm8            V == 1 ? PC = mem[IO+imm8] : nop        branch offset if overflow
+BA.N    BA.N #imm8            N == 1 ? PC = mem[IO+imm8] : nop        branch offset if negative
+BA.P    BA.P #imm8            P == 1 ? PC = mem[IO+imm8] : nop        branch offset if positive
 
 -- memory --
 
-24 bit address width
+16 bit address width
 
-000000...FFFFFF total memory
+0000...FFFF total memory
 
-000000...3FFFFF ROM
-400000...7FFFFF RAM
-800000...9FFFFF stack from top
-AFFFFF...FFFFFD reserved
-FFFFFE...FFFFFF control register
+0000...3FFF ROM
+4000...7FFF RAM
+8000...9FFF stack from top
+AFFF...FFFF reserved
 
 -- instruction mapping --
 
@@ -128,16 +128,18 @@ SRA     SRA      rA,  rB
 
 io
 LB      LB   rA,  #imm8
-        0000 0000 00000000
+        0010 0000 00000000
 LW      LW   rA,  #imm8
-        0001 0000 00000000
-SB      SB   #imm8,   rA
-        0010 00000000 0000
-SW      SW   #imm8,   rA
-        0011 00000000 0000
-MV      MV     rA,  rB/#imm6
-        01000I 0000 00 0000
-MVL     MVL  rS,  #imm8
+        0011 0000 00000000
+SB      SB   rA,  #imm8
+        0110 0000 00000000
+SW      SW   rA   #imm8
+        0111 0000 00000000
+MV      MV        rA,  rB
+        0001 ???? 0000 0000
+MVL     MVL  rA,  #imm8
+        0100 0000 00000000
+MVH     MVH  rA,  #imm8
         0101 0000 00000000
 
 control
@@ -150,9 +152,9 @@ POP     POP          rA
 CALL    CALL     #imm8
         11000001 00000000
 RET     RET
-        110000000001 0???
+        110000000001 ????
 NOP     NOP
-        110000000001 1???
+        0000000000000000
 
 jump
 BO      BO        #imm8

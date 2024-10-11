@@ -1,13 +1,13 @@
 class CPU:
   def __init__(self):
     # Memory
-    self.memory = [0] * (0xFFFFFF + 1)  # 24-bit address space
+    self.memory = [0] * (0xFFFF + 1)  # 24-bit address space
     
     # Registers
     self.registers = [0] * 16  # R1 to R16
     
     # init sp
-    self.sp = 0x9FFFFF  # Stack Pointer (24-bit), initialized to top of stack
+    self.sp = 0x9FFF  # Stack Pointer (24-bit), initialized to top of stack
     
     # init flags
     self.z = 0  # Zero
@@ -113,32 +113,6 @@ class CPU:
 
   def reset(self):
     self.__init__()
-  
-  def nop_rom(self):
-    # 16-bit value to be split
-    value = 0b1100000000011000  # Equivalent to 0xC018
-    
-    # Split the value into two 8-bit parts
-    upper_byte = (value >> 8) & 0xFF  # First 8 bits: 0xC0
-    lower_byte = value & 0xFF         # Second 8 bits: 0x18
-    
-    # Populate memory: upper_byte in even locations, lower_byte in odd locations
-    for i in range(0, 0x3FFFFF + 1, 2):
-      self.memory[i] = upper_byte     # Store upper byte in even locations
-      self.memory[i + 1] = lower_byte # Store lower byte in odd locations
-
-  def nop_range(self, start, end):
-    # 16-bit value to be split
-    value = 0b1100000000011000  # Equivalent to 0xC018
-    
-    # Split the value into two 8-bit parts
-    upper_byte = (value >> 8) & 0xFF  # First 8 bits: 0xC0
-    lower_byte = value & 0xFF         # Second 8 bits: 0x18
-    
-    # Populate memory: upper_byte in even locations, lower_byte in odd locations
-    for i in range(start, end + 1, 2):
-      self.memory[i] = upper_byte     # Store upper byte in even locations
-      self.memory[i + 1] = lower_byte # Store lower byte in odd locations
 
   def load_program_from_file(self, filename, start_address=0):
     with open(filename, 'r') as file:
@@ -159,7 +133,7 @@ class CPU:
 
   def fetch(self):
     instruction = (self.memory[self.pc] << 8) | self.memory[self.pc + 1]
-    if instruction != 0b1100000000011000:
+    if instruction != 0b0:
       print(f"instr: {hex(instruction)}")
     self.pc += 2
     print(f"pc: {hex(self.pc)}")
@@ -168,47 +142,44 @@ class CPU:
   def decode_and_execute(self, instruction):
     opcode = (instruction >> 12) & 0xF
     
-    if opcode == 0x0:  # LB
+    if opcode == 0b0010:  # LB
       ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
-      address = (self.io << 8) + imm8
+      address = self.io + imm8
       self.registers[ra] = self.read_byte(address)
     
-    elif opcode == 0x1:  # LW
+    elif opcode == 0b0011:  # LW
       ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
-      address = (self.io << 8) + imm8
+      address = self.io + imm8
       self.registers[ra] = self.read_word(address)
   
-    elif opcode == 0x2:  # SB
-      ra = instruction & 0xF
-      imm8 = (instruction >> 4) & 0xFF
-      address = (self.io << 8) + imm8
+    elif opcode == 0b0110:  # SB
+      ra = (instruction >> 8) & 0xF
+      imm8 = instruction & 0xFF
+      address = self.io + imm8
       self.write_byte(address, self.registers[ra])
     
-    elif opcode == 0x3:  # SW
-      ra = instruction & 0xF
-      imm8 = (instruction >> 4) & 0xFF
-      address = (self.io << 8) + imm8
+    elif opcode == 0b0111:  # SW
+      ra = (instruction >> 8) & 0xF
+      imm8 = instruction & 0xFF
+      address = self.io + imm8
       self.write_word(address, self.registers[ra])
   
-    elif opcode == 0x4:  # MV
-      print(hex(instruction))
-      ra = (instruction >> 6) & 0xF
-      rb_or_imm = instruction & 0x3F
-      is_imm = (instruction >> 10) & 0x1
-      value = rb_or_imm if is_imm else self.registers[rb_or_imm & 0xF]
-      self.registers[ra] = value
+    elif opcode == 0b0001:  # MV
+      ra = (instruction >> 4) & 0xF
+      rb = instruction & 0xF
+      self.registers[ra] = self.registers[rb]
     
-    elif opcode == 0x5:  # MVL
-      rs = (instruction >> 8) & 0xF
+    elif opcode == 0b0100: # MVL
+      ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
-      value = (self.io << 8) + imm8
-      print(hex(value))
-      if rs in [13, 14]:  # LR, SP        for PC use BA
-        self.registers[rs] = value
-      else:
-        raise ValueError(f"Invalid special register: {rs}")
+      self.registers[ra] = (self.registers[ra] & 0xFF00) | (imm8)
+      
+    elif opcode == 0b0101: # MVH
+      ra = (instruction >> 8) & 0xF
+      imm8 = instruction & 0xFF
+      self.registers[ra] = (self.registers[ra] & 0x00FF) | (imm8 << 8)
     
     elif opcode == 0x8:  # Arithmetic operations ADD and ADC
       ra = (instruction >> 6) & 0xF
@@ -266,7 +237,7 @@ class CPU:
       elif subop == 0x4:  # CALL
         imm8 = instruction & 0xFF
         self.lr = self.pc
-        self.pc = (self.registers[12] << 8) + imm8
+        self.pc = self.io + imm8
       elif subop == 0x3:  # RET
         self.pc = self.lr
 
@@ -301,20 +272,20 @@ class CPU:
             raise ValueError("PC out of range, jumped too far.")
           #self.pc += sign_extend(imm8, 8)
         else:
-          self.pc = (self.io<<8) + imm8
+          self.pc = self.io + imm8
           #self.pc = self.read_word((self.registers[12] << 8) + imm8)
   
   def run(self, ttl = None):
     if ttl == None:
-      ttl = 0xFFFFFF 
+      ttl = 0xFFFF # Change for longer programs 
     while ttl > 0:
       instruction = self.fetch()
       self.decode_and_execute(instruction)
 
       ttl -= 1
       # halt condition
-      if self.pc == 0xFFFFF4:#0x000020: #make FFFFF0 later
-        print("\033[31m[halt]\033[0m reached 0xFFFFF4 with PC")
+      if self.pc == 0xFFF4:
+        print("\033[31m[halt]\033[0m reached 0xFFF4 with PC")
         break
 
     if ttl == 0:
