@@ -7,7 +7,7 @@ class CPU:
     self.registers = [0] * 16  # R1 to R16
     
     # init sp
-    self.sp = 0x9FFF  # Stack Pointer (24-bit), initialized to top of stack
+    self.sp = 0x9FFE  # Stack Pointer (24-bit), initialized to top of stack
     
     # init flags
     self.z = 0  # Zero
@@ -145,25 +145,37 @@ class CPU:
     if opcode == 0b0010:  # LB
       ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
+      if imm8 & 0x80:  # If the highest bit (sign bit) is set
+        imm8 -= 0x100  # Convert to negative two's complement
       address = self.io + imm8
       self.registers[ra] = self.read_byte(address)
     
     elif opcode == 0b0011:  # LW
       ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
+      if imm8 & 0x80:  # If the highest bit (sign bit) is set
+        imm8 -= 0x100  # Convert to negative two's complement
       address = self.io + imm8
+      if address % 2 != 0:
+        raise ValueError("Access to an odd address is not allowed: 0x{:X}".format(address))
       self.registers[ra] = self.read_word(address)
   
     elif opcode == 0b0110:  # SB
       ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
+      if imm8 & 0x80:  # If the highest bit (sign bit) is set
+        imm8 -= 0x100  # Convert to negative two's complement
       address = self.io + imm8
       self.write_byte(address, self.registers[ra])
     
     elif opcode == 0b0111:  # SW
       ra = (instruction >> 8) & 0xF
       imm8 = instruction & 0xFF
+      if imm8 & 0x80:  # If the highest bit (sign bit) is set
+        imm8 -= 0x100  # Convert to negative two's complement
       address = self.io + imm8
+      if address % 2 != 0:
+        raise ValueError("Access to an odd address is not allowed: 0x{:X}".format(address))
       self.write_word(address, self.registers[ra])
   
     elif opcode == 0b0001:  # MV
@@ -195,12 +207,11 @@ class CPU:
         self.registers[ra] = self.alu_add(self.registers[ra], b, with_carry=True)
 
     elif opcode == 0x9: # Rest of Arithmetic operations
-      print(hex(instruction))
       subop = (instruction >> 8) & 0xF
       ra = (instruction >> 4) & 0xF
       rb = instruction & 0xF
 
-      if (instruction >> 11) == 0x0:  # SUB
+      if (instruction >> 10) & 0x1:  # SUB
         ra = (instruction >> 6) & 0xF
         imm = instruction & 0x3F
         is_imm = (instruction >> 10) & 0x1
@@ -222,27 +233,31 @@ class CPU:
         self.registers[ra] = self.alu_shift(self.registers[ra], self.registers[rb], 'right', arithmetic=True)
       
     elif opcode == 0xC:  # Control instructions
-      subop = (instruction >> 8) & 0xF
+      if (instruction >> 8) & 0xF == 0x1: # CALL
+        imm8 = instruction & 0xFF
+        if imm8 & 0x80:  # If the highest bit (sign bit) is set
+          imm8 -= 0x100  # Convert to negative two's complement
+        self.lr = self.pc
+        self.pc = self.io + imm8
+      subop = (instruction >> 4) & 0xF
       if subop == 0x0:  # SET
         ra = instruction & 0xF
         self.set_flags(self.registers[ra])
-      elif subop == 0x1:  # PUSH
+      elif subop == 0x2:  # PUSH
         ra = instruction & 0xF
         self.sp -= 2
         self.write_word(self.sp, self.registers[ra])
-      elif subop == 0x2:  # POP
+      elif subop == 0x3:  # POP
         ra = instruction & 0xF
         self.registers[ra] = self.read_word(self.sp)
         self.sp += 2
-      elif subop == 0x4:  # CALL
-        imm8 = instruction & 0xFF
-        self.lr = self.pc
-        self.pc = self.io + imm8
-      elif subop == 0x3:  # RET
+      elif subop == 0x1:  # RET
         self.pc = self.lr
 
     elif opcode in [0xE, 0xF]:  # Jump instructions
       imm8 = instruction & 0xFF
+      if imm8 & 0x80:  # If the highest bit (sign bit) is set
+        imm8 -= 0x100  # Convert to negative two's complement
       condition = (instruction >> 8) & 0x7
       is_branch_offset = opcode == 0xE
 
@@ -268,7 +283,7 @@ class CPU:
       if should_jump:
         if is_branch_offset:
           self.pc += imm8
-          if self.pc > 0xFFFFFF:
+          if self.pc > 0xFFFF or self.pc < 0x0000:
             raise ValueError("PC out of range, jumped too far.")
           #self.pc += sign_extend(imm8, 8)
         else:
@@ -284,7 +299,7 @@ class CPU:
 
       ttl -= 1
       # halt condition
-      if self.pc == 0xFFF4:
+      if self.pc > 0xFFF4:
         print("\033[31m[halt]\033[0m reached 0xFFF4 with PC")
         break
 
@@ -306,13 +321,13 @@ class CPU:
 
   def alu_add(self, a, b, with_carry=False):
     result = a + b + (self.c if with_carry else 0)
-    self.c = 1 if result > 0xFFFF else 0
+    self.c = 1 if result > 0x7FFF else 0 # TODO: check carry
     self.v = 1 if (a ^ result) & (b ^ result) & 0x8000 else 0 #TODO: check line
     return result & 0xFFFF
 
   def alu_sub(self, a, b):
     result = a - b
-    self.c = 0 if result < 0 else 1
+    self.c = 0 if result > 0 else 1 # TODO: check carry
     self.v = 1 if (a ^ b) & (a ^ result) & 0x8000 else 0
     return result & 0xFFFF
 

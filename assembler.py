@@ -19,7 +19,7 @@ register_map = {
 def parse_rbimm6b(operand):
   """Parse an rB/#imm6 operand (register or immediate in decimal or hex)."""
   if operand.startswith('R'):
-    return format(int(register_map[operand]), '06b'), '0'  # Register
+    return format(int(register_map[operand]), '06d'), '0'  # Register
   elif operand.startswith('#'):
     imm_value = operand[1:]  # Remove the '#' prefix
     
@@ -85,10 +85,15 @@ def assemble_instruction(line):
     rB = parse_reg(parts[2])
     return f"{opcode}{rA}{rB}"
   
-  elif instruction in ['SB', 'SW', 'LB', 'LW', 'MV', 'MVL', 'MVH']:
+  elif instruction in ['SB', 'SW', 'LB', 'LW', 'MVL', 'MVH']:
     rA = parse_reg(parts[1].rstrip(','))
     imm8 = parse_imm8b(parts[2])
     return f"{opcode}{rA}{imm8}"
+  
+  elif instruction in ['MV']:
+    rA = parse_reg(parts[1].rstrip(','))
+    rB = parse_reg(parts[2])
+    return f"{opcode}0000{rA}{rB}"
   
   elif instruction in ['SET', 'PUSH', 'POP']:
     rA = parse_reg(parts[1])
@@ -99,7 +104,7 @@ def assemble_instruction(line):
     return f"{opcode}{rA}0000"
   
   elif instruction in ['RET', 'NOP']:
-    return f"{opcode}000"
+    return f"{opcode}0000"
   
   elif instruction in ['CALL',
                        'BO', 'BO.Z', 'BO.NZ', 'BO.C', 'BO.V', 'BO.N', 'BO.P',
@@ -186,7 +191,7 @@ def assemble_file(input_file, output_file):
 
     elif line.startswith('@'):     # Adds labels to the dictionary
       label = line[1:]
-      address = format(len(binary_output), '016b')  # Format address as 16-bit binary
+      address = format(len(binary_output)*2, '016b')  # Format address as 16-bit binary
       if label in labels:
         raise ValueError(f"Label '{label}' already exists in the dictionary.")
       labels[label] = address
@@ -204,6 +209,7 @@ def assemble_file(input_file, output_file):
 
   # Replace labels with their proper addresses
   binary_output = replace_labels(binary_output, labels)
+  print(labels)
 
   with open(output_file, 'w') as bin_file:
     bin_file.write('\n'.join(binary_output))

@@ -1,3 +1,4 @@
+MVL R4, #-1
 MVL R1, #5
 MVL R2, #3
 ADC R1, R2
@@ -6,27 +7,30 @@ MVL IO, #0x00
 MVH IO, #0x40
 SW R1, #0
 
+MVL R2, #5
+asm.mv R3, #5
+asm.mv R4, #10
+
+asm.call @multiply
+
+MVL R8, #10
+
 MVH IO, #0xFF
 BA #0xF0
 
-asm.call @test
-
-@test
-
-asm.stop
-
-asm.call @multiply
+#asm.stop
 
 # multiplier - multiplies R2 and R3 and puts result in R1
 # R4 is used, but pushed and popped to stack. R1 is destroyed
 @multiply
+MVL R8, #5
 PUSH R4
 MV R4, R2
-MVL R1, #0
-SET R1         # begin loop
-BO.NZ #6
+asm.mv R1, #0
+SET R4         # begin loop
+BO.NZ #4
 POP R4
 RET
 ADC R1, R3     # what if carry is set in first iteration?
 SUB R4, #1
-BO #-12
+BO #-14
