@@ -11,10 +11,11 @@ cpu.reset()
 cpu.load_program_from_file('binary.txt')
 
 # Run the CPU
-cpu.run(ttl=0xFF)
+# cpu.run(ttl=0xFF)
+cpu.stepwise_run()
 
 # Check register and flag values
-cpu.print_registers()
+cpu.print_registers_dense()
 cpu.print_flags()
 
 # Check register values with expected

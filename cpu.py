@@ -133,13 +133,11 @@ class CPU:
 
   def fetch(self):
     instruction = (self.memory[self.pc] << 8) | self.memory[self.pc + 1]
-    if instruction != 0b0:
-      print(f"instr: {hex(instruction)}")
-    self.pc += 2
-    print(f"pc: {hex(self.pc)}")
     return instruction
 
   def decode_and_execute(self, instruction):
+    self.pc += 2
+
     opcode = (instruction >> 12) & 0xF
     
     if opcode == 0b0010:  # LB
@@ -363,31 +361,45 @@ class CPU:
     self.p = 1 if not self.z and not self.n else 0
 
   def print_registers(self):
-    print("--- printing contents of registers ---")
-    print(f"R1: \t{self.registers[0x0]} \t{hex(self.registers[0x0])}")
-    print(f"R2: \t{self.registers[0x1]} \t{hex(self.registers[0x1])}")
-    print(f"R3: \t{self.registers[0x2]} \t{hex(self.registers[0x2])}")
-    print(f"R4: \t{self.registers[0x3]} \t{hex(self.registers[0x3])}")
-    print(f"R5: \t{self.registers[0x4]} \t{hex(self.registers[0x4])}")
-    print(f"R6: \t{self.registers[0x5]} \t{hex(self.registers[0x5])}")
-    print(f"R7: \t{self.registers[0x6]} \t{hex(self.registers[0x6])}")
-    print(f"R8: \t{self.registers[0x7]} \t{hex(self.registers[0x7])}")
-    print(f"R9: \t{self.registers[0x8]} \t{hex(self.registers[0x8])}")
-    print(f"R10:\t{self.registers[0x9]} \t{hex(self.registers[0x9])}")
-    print(f"R11:\t{self.registers[0xA]} \t{hex(self.registers[0xA])}")
-    print(f"IO: \t{self.registers[0xB]} \t{hex(self.registers[0xB])}")
-    print(f"LR: \t{self.registers[0xC]} \t{hex(self.registers[0xC])}")
-    print(f"SP: \t{self.registers[0xD]} \t{hex(self.registers[0xD])}")
-    print(f"PC: \t{self.registers[0xE]} \t{hex(self.registers[0xE])}")
-    print(f"FL: \t{self.registers[0xF]} \t{hex(self.registers[0xF])}")
+    print("\033[34m--- printing contents of registers ---\033[0m")
+    for i, reg_name in enumerate(['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'IO', 'LR', 'SP', 'PC', 'FL']):
+      value_dec = self.registers[i]       # Decimal value
+      value_hex = hex(self.registers[i])  # Hexadecimal value
+      print(f"{reg_name: <4}: {value_dec: >10}  {value_hex: >10}")
+
+  def print_registers_dense(self):
+    print("\033[34m--- printing contents of registers ---\033[0m")
+    for i in range(0, 16, 4):  # Process 4 registers at a time
+      line = ""
+      for j in range(4):
+        reg_name = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'IO', 'LR', 'SP', 'PC', 'FL'][i+j]
+        value_dec = self.registers[i+j]
+        value_hex = hex(self.registers[i+j])
+        line += f"{reg_name: <4}: {value_dec: >10} {value_hex: >10}    "
+      print(line)
 
   def print_flags(self):
-    print("--- printing flags ---")
-    print(f"Zero flag:    \t{self.z}")
-    print(f"Negative flag:\t{self.n}")
-    print(f"Positive flag:\t{self.p}")
-    print(f"Carry flag:   \t{self.c}")
-    print(f"Overflow flag:\t{self.v}")
+    print("\033[34m--- printing flags ---\033[0m")  # Blue heading
+    print(f"Z: {self.z}   N: {self.n}   P: {self.p}   C: {self.c}   V: {self.v}")
+
+  def detect_register_changes(self, old_registers):
+    changed_registers = []
+    for i in range(14):
+      if self.registers[i] != old_registers[i]:
+        changed_registers.append(i)
+
+    # only notify when PC changes to something other than +2 (or +0 when no execute during prompt)
+    if self.pc != old_registers[14] + 2 and self.pc != old_registers[14]: 
+      changed_registers.append(14)
+    return changed_registers
+  
+  def detect_flag_changes(self, old_flags):
+    changed_flags = []
+    current_flags = {'z': self.z, 'n': self.n, 'p': self.p, 'c': self.c, 'v': self.v}
+    for flag, old_value in old_flags.items():
+      if current_flags[flag] != old_value:
+        changed_flags.append(flag)
+    return changed_flags
 
   def evaluate_registers(self, output = None, halt = None, r1 = None, r2 = None, r3 = None, r4 = None, r5 = None, r6 = None, r7 = None, r8 = None, r9 = None, r10 = None, r11 = None, io = None, lr = None, sp = None, pc = None, fl = None):
     error = False
@@ -446,6 +458,89 @@ class CPU:
     if error and halt:
       raise ValueError("Invalid register content")
     return error
+  
+  def stepwise_run(self):
+    cycle_count = 0
+    print_changes = True
+
+    changed_registers = []
+    changed_flags = []
+
+    while True:
+      # Ask the user for input
+      instruction = self.fetch()
+      user_input = input(f"PC: 0x{self.pc:04X}, instr: 0x{instruction:04X}, Cycle: {cycle_count:03}. Enter # of instr to execute, (r/re)gisters, (f)lags, (t)oggle changes, (q)uit: ").strip()
+
+      old_registers = self.registers[:]
+      old_flags = {'z': self.z, 'n': self.n, 'p': self.p, 'c': self.c, 'v': self.v}
+
+      if user_input == '':
+        # Execute one instruction if input is empty
+        self.decode_and_execute(instruction)
+        cycle_count += 1  # Increment cycle count by 1
+      elif user_input.isdigit():
+        # Execute specified number of instructions
+        for _ in range(int(user_input)):
+          instruction = self.fetch()
+          self.decode_and_execute(instruction)
+          cycle_count += 1  # Increment cycle count by 1
+          if self.pc > 0xFFF4:
+            print("\033[31m[halt]\033[0m reached 0xFFF4 with PC")
+            break
+      elif user_input.lower() == 'r':
+        # Print registers dense
+        self.print_registers_dense()
+      elif user_input.lower() == 're':
+        #print registers extended
+        self.print_registers()
+      elif user_input.lower() == 'f':
+        # Print flags
+        self.print_flags()
+      elif user_input == 'n':
+        instruction = self.fetch()
+        print(f"instr:\t{hex(instruction)}")
+      elif user_input == 'l':
+        self.pc -= 2
+        instruction = self.fetch()
+        self.pc += 2
+        print(f"instr:\t{hex(instruction)}")
+      elif user_input == 't':
+        print_changes = not print_changes
+        if print_changes:
+          print("register and flag changes will now be printed")
+        else:
+          print("no more register and flag changes will be printed")
+      elif user_input.lower() == 'q':
+        # Quit the execution
+        print("Execution halted by user.")
+        break
+      else:
+        # Handle invalid input
+        print("Invalid input. Please enter a number, 'r', 'f', or 'q'.")
+
+      # Detect changes in registers and flags
+      if print_changes:
+        changed_registers = self.detect_register_changes(old_registers)
+        changed_flags = self.detect_flag_changes(old_flags)
+
+      # Print changed registers
+      if changed_registers and print_changes:
+        print("\033[33m--- Registers changed ---\033[0m")
+        for reg in changed_registers:
+          reg_name = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'IO', 'LR', 'SP', 'PC', 'FL'][reg]
+          print(f"{reg_name}: {self.registers[reg]} (0x{self.registers[reg]:X})")
+
+      # Print changed flags
+      if changed_flags and print_changes:
+        print("\033[38;5;214m--- Flags changed ---\033[0m")
+        for flag in changed_flags:
+          print(f"{flag.upper()} flag changed to {getattr(self, flag)}")
+
+      # Optional halt condition (e.g., if PC reaches 0xFFF4)
+      if self.pc > 0xFFF4:
+        print("\033[31m[halt]\033[0m reached 0xFFF4 with PC")
+        break
+
 
 # Helper functions
 def sign_extend(value, bits):

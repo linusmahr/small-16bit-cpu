@@ -209,7 +209,6 @@ def assemble_file(input_file, output_file):
 
   # Replace labels with their proper addresses
   binary_output = replace_labels(binary_output, labels)
-  print(labels)
 
   with open(output_file, 'w') as bin_file:
     bin_file.write('\n'.join(binary_output))
