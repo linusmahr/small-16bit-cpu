@@ -1,3 +1,14 @@
+asm.mv R1, #1
+asm.mv R2, #23
+asm.mv R3, #3
+asm.mv R4, #4
+asm.mv R5, #5
+asm.mv R6, #6
+asm.call @fibonacci
+
+MVH IO, #0xFF
+BA #0xF0
+
 MVL R4, #-1
 MVL R1, #5
 MVL R2, #3
@@ -34,3 +45,36 @@ RET
 ADC R1, R3     # what if carry is set in first iteration?
 SUB R4, #1
 BO #-14
+
+# fibonacci - calculates the specified fibonacci number. sequence starts with 1, 2, ...
+# result is put in R1, specified fibonacci number has to be put in R2
+@fibonacci
+PUSH R2
+asm.mv R1, #1
+
+# check if n is 1 or less; then fibonacci is 1
+SUB R2, #1
+SET R2
+BO.P #4
+POP R2
+RET
+
+# else compute fibonacci:
+ADD R2, #1        # add back up from eval
+PUSH R3           # store regs
+PUSH R4
+asm.mv R3, #0     # clear regs
+asm.mv R4, #0
+@fibonacci.loop
+SUB R2, #1        # decrement n
+MV R4, R1
+ADD R4, R3        # add R3 and R1
+MV R3, R1
+MV R1, R4
+SET R2            # evaluate
+BO.P #-14
+POP R4
+POP R3
+POP R2
+RET
+# BA @fibonaccy.loop      # another loop
