@@ -1,3 +1,5 @@
+import disassembler
+
 class CPU:
   def __init__(self):
     # Memory
@@ -469,7 +471,9 @@ class CPU:
     while True:
       # Ask the user for input
       instruction = self.fetch()
-      user_input = input(f"PC: 0x{self.pc:04X}, instr: 0x{instruction:04X}, Cycle: {cycle_count:03}. Enter # of instr to execute, (r/re)gisters, (f)lags, (t)oggle changes, (q)uit: ").strip()
+      instruction_asm = disassembler.disassemble_instruction(hex(instruction))
+      # maybe set width of disassembled instr higher
+      user_input = input(f"PC: 0x{self.pc:04X}, instr: 0x{instruction:04X} ({instruction_asm:11}), Cycle: {cycle_count:03}. Enter # of instr to execute, (r/re)gisters, (f)lags, (t)oggle changes, (q)uit: ").strip()
 
       old_registers = self.registers[:]
       old_flags = {'z': self.z, 'n': self.n, 'p': self.p, 'c': self.c, 'v': self.v}
@@ -498,12 +502,14 @@ class CPU:
         self.print_flags()
       elif user_input == 'n':
         instruction = self.fetch()
-        print(f"instr:\t{hex(instruction)}")
+        instruction_asm = disassembler.disassemble_instruction(hex(instruction))
+        print(f"instr:\t{hex(instruction)} {instruction_asm}")
       elif user_input == 'l':
         self.pc -= 2
         instruction = self.fetch()
+        instruction_asm = disassembler.disassemble_instruction(hex(instruction))
         self.pc += 2
-        print(f"instr:\t{hex(instruction)}")
+        print(f"instr:\t{hex(instruction)} {instruction_asm}")
       elif user_input == 't':
         print_changes = not print_changes
         if print_changes:
@@ -528,13 +534,13 @@ class CPU:
         print("\033[33m--- Registers changed ---\033[0m")
         for reg in changed_registers:
           reg_name = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'IO', 'LR', 'SP', 'PC', 'FL'][reg]
-          print(f"{reg_name}: {self.registers[reg]} (0x{self.registers[reg]:X})")
+          print(f"  {reg_name}: {self.registers[reg]} (0x{self.registers[reg]:X})")
 
       # Print changed flags
       if changed_flags and print_changes:
         print("\033[38;5;214m--- Flags changed ---\033[0m")
         for flag in changed_flags:
-          print(f"{flag.upper()} flag changed to {getattr(self, flag)}")
+          print(f"  {flag.upper()} flag changed to {getattr(self, flag)}")
 
       # Optional halt condition (e.g., if PC reaches 0xFFF4)
       if self.pc > 0xFFF4:

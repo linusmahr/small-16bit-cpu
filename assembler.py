@@ -1,3 +1,5 @@
+# assembler.py
+
 # Define instruction mapping and register encoding based on design.txt
 instruction_map = {
   'ADD':  '10000', 'ADC': '10001', 'SUB': '10010', 'AND': '10011000', 'OR': '10011001',
