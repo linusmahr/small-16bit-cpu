@@ -73,8 +73,8 @@ def disassemble_instruction(binary_code):
         rA = register_map_reverse[binary_code[12:]]
         return f"{instruction_map_reverse[binary_code[:12]]} {rA}"
 
-    elif binary_code[:13] == '110000000001':  # RET
-        return instruction_map_reverse[binary_code[:13]]
+    elif binary_code[:12] == '110000000001':  # RET
+        return instruction_map_reverse[binary_code[:12]]
 
     elif binary_code[:13] == '0000000000000':  # NOP
         return instruction_map_reverse[binary_code[:13]]
