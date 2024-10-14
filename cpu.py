@@ -67,7 +67,7 @@ class CPU:
     if value:
       self.fl |= 1
     else:
-      self.fl &= ~0 
+      self.fl &= ~1 
 
   @property
   def n(self):
@@ -78,7 +78,7 @@ class CPU:
     if value:
       self.fl |= (1<<1)
     else:
-      self.fl &= ~(0<<1)
+      self.fl &= ~(1<<1)
 
   @property
   def p(self):
@@ -89,7 +89,7 @@ class CPU:
     if value:
       self.fl |= (1<<2)
     else:
-      self.fl &= ~(0<<2)
+      self.fl &= ~(1<<2)
 
   @property
   def c(self):
@@ -233,14 +233,14 @@ class CPU:
         self.registers[ra] = self.alu_shift(self.registers[ra], self.registers[rb], 'right', arithmetic=True)
       
     elif opcode == 0xC:  # Control instructions
+      subop = (instruction >> 4) & 0xF
       if (instruction >> 8) & 0xF == 0x1: # CALL
         imm8 = instruction & 0xFF
         if imm8 & 0x80:  # If the highest bit (sign bit) is set
           imm8 -= 0x100  # Convert to negative two's complement
         self.lr = self.pc
         self.pc = self.io + imm8
-      subop = (instruction >> 4) & 0xF
-      if subop == 0x0:  # SET
+      elif subop == 0x0:  # SET
         ra = instruction & 0xF
         self.set_flags(self.registers[ra])
       elif subop == 0x2:  # PUSH
@@ -360,7 +360,7 @@ class CPU:
   def set_flags(self, result):
     self.z = 1 if result == 0 else 0
     self.n = 1 if result & 0x8000 else 0
-    self.p = 1 if not self.z and not self.n else 0
+    self.p = 1 if (result != 0 and not (result & 0x8000)) else 0
 
   def print_registers(self):
     print("\033[34m--- printing contents of registers ---\033[0m")
