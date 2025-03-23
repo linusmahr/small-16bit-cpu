@@ -108,9 +108,9 @@ arithmetic
 ADD     ADD    rA,  rB/#imm6
         10000I 0000 00 0000
 ADC     ADC    rA,  rB/#imm6
-        10001I 0000 000000
+        10001I 0000 00 0000
 SUB     SUB    rA,  rB/#imm6
-        10010I 0000 000000
+        10010I 0000 00 0000
 AND     AND      rA,  rB
         10011000 0000 0000
 OR      OR       rA,  rB
